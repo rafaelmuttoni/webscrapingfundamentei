@@ -1,97 +1,946 @@
-const puppeteer = require('puppeteer')
-const readline = require('readline-sync')
+const puppeteer = require("puppeteer");
+const fs = require("fs");
 
-const scrapeAtivo = async () => {
-
+const scrapeStocksSlugs = async () => {
   // Email e senha
 
-  const user = {}
+  const user = {};
 
-  user.email = askEmail()
-  user.password = askPassword()
-
-  console.log('If your info is correct you should see the result in about ~1min')
-
-  // Perguntar e-mail e senha
-
-  function askEmail() {
-    return readline.question('Type an e-mail: ')
-  }
-
-  function askPassword() {
-    return readline.question('Type your password: ')
-  }
+  user.email = "rmuttonic@gmail.com";
+  user.password = "12345678";
 
   // Abrir browser e navegar para a pagina
 
-  const browser = await puppeteer.launch( { headless: true } );
+  const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
 
-  await page.goto('https://fundamentei.com/login')
+  await page.goto("https://fundamentei.com/login");
 
   // Login
 
-  await page.type('[name=email]', user.email)
+  await page.type("[name=email]", user.email);
 
-  await page.type('[name=password]', user.password)
+  await page.type("[name=password]", user.password);
 
-  await page.click('[type=submit]')
+  await Promise.all([
+    page.click("[type=submit]"),
+    page.waitForNavigation({ waitUntil: "networkidle2" }),
+  ]);
 
-  await page.waitFor(5000)
+  await page.click(`[aria-label="Filtrar por Ações"]`);
+  await page.waitFor(3000);
 
-  // Selecionar Brazilian Companies
+  let isThereAButton = true;
 
-  for (i = 0; i < 10; i ++) {
-    await page.keyboard.press('Tab')
-    await page.waitFor(200)
+  while (isThereAButton) {
+    const [button] = await page.$x("//button[contains(., 'Ver mais ativos')]");
+
+    if (button) {
+      isThereAButton = true;
+      await button.click();
+      await page.waitFor(3000);
+    } else {
+      isThereAButton = false;
+    }
   }
-
-  await page.keyboard.press('Space')
-  await page.waitFor(200)
-  await page.keyboard.press('ArrowDown')
-  await page.waitFor(200)
-  await page.keyboard.press('ArrowDown')
-  await page.waitFor(200)
-  await page.keyboard.press('Enter')
-  await page.waitFor(2000)
-
-  // Carregar toda página
-
-  for (i = 0; i < 41; i++) {
-    await page.keyboard.press('Tab')
-    await page.waitFor(200)
-  }
-  
-
-  for (i = 0; i < 15; i++) {
-    await page.keyboard.press('Space')
-    await page.waitFor(1000)
-  }
-  
 
   // Cria array de codigos dos ativos
 
+  const codigosAtivos = await page.$$eval(".css-1rvjs5a", (ativo) =>
+    ativo.map((ativo) => ativo.textContent)
+  );
 
-  const codigosAtivos = await page.$$eval('.css-1rvjs5a', ativo => ativo.map(ativo => ativo.textContent));
+  console.log(`Total ativos: `, codigosAtivos.length);
+  browser.close();
 
+  return fs.writeFile("ativos.txt", codigosAtivos.join(","), function (err) {
+    if (err) return console.log(err);
+    console.log("Arquivo ativos.txt criado.");
+  });
+};
 
-  for (i = 0; codigosAtivos.length; i++) {
-    await page.goto(`https://fundamentei.com/br/${codigosAtivos[i]}`)
-    // NOTA ATIVO
-    const [notaEl] = await page.$x('//*[@id="__next"]/div[2]/div[5]/div/div/div/strong')
-    const notaProp = await notaEl.getProperty('textContent')
-    const nota = await notaProp.jsonValue()
-    // NUM AVALIACOES
-    const [numEl] = await page.$x('//*[@id="__next"]/div[2]/div[5]/div/div/div/span')
-    const numProp = await numEl.getProperty('textContent')
-    const numAvaliacoes = await numProp.jsonValue()
-    // CRIA OBJETO COM NOME ATIVO, NOTA E NUM DE AVALIACOES E LOGA
-    const object = {nome: codigosAtivos[i], nota, numAvaliacoes}
-    console.log(object)
+const scrapeFiisSlugs = async () => {
+  // Email e senha
+
+  const user = {};
+
+  user.email = "rmuttonic@gmail.com";
+  user.password = "12345678";
+
+  // Abrir browser e navegar para a pagina
+
+  const browser = await puppeteer.launch({ headless: true });
+  const page = await browser.newPage();
+
+  await page.goto("https://fundamentei.com/login");
+
+  // Login
+
+  await page.type("[name=email]", user.email);
+
+  await page.type("[name=password]", user.password);
+
+  await Promise.all([
+    page.click("[type=submit]"),
+    page.waitForNavigation({ waitUntil: "networkidle2" }),
+  ]);
+
+  await page.click(`[aria-label="Filtrar por Fundos Imobiliários"]`);
+  await page.waitFor(3000);
+
+  let isThereAButton = true;
+
+  while (isThereAButton) {
+    const [button] = await page.$x("//button[contains(., 'Ver mais ativos')]");
+
+    if (button) {
+      isThereAButton = true;
+      await button.click();
+      await page.waitFor(3000);
+    } else {
+      isThereAButton = false;
+    }
   }
 
+  // Cria array de codigos dos ativos
 
-  browser.close()
-}
+  const codigosAtivos = await page.$$eval(".css-1rvjs5a", (ativo) =>
+    ativo.map((ativo) => ativo.textContent)
+  );
 
-scrapeAtivo()
+  console.log(`Total ativos: `, codigosAtivos.length);
+  browser.close();
+
+  return fs.writeFile("fiis.txt", codigosAtivos.join(","), function (err) {
+    if (err) return console.log(err);
+    console.log("Arquivo fiis.txt criado.");
+  });
+};
+
+const scrapeData = async () => {
+  const stocks = [
+    "PETR",
+    "VALE",
+    "ABEV",
+    "ITUB",
+    "BBDC",
+    "WEGE",
+    "RDOR",
+    "SANB",
+    "ITSA",
+    "JBSS",
+    "MGLU",
+    "BBAS",
+    "B3SA",
+    "RAIZ",
+    "VIVT",
+    "SUZB",
+    "GOLL",
+    "NTCO",
+    "ELET",
+    "HAPV",
+    "AZUL",
+    "BRKM",
+    "GNDI",
+    "GGBR",
+    "CSAN",
+    "RENT",
+    "BBSE",
+    "CSNA",
+    "RADL",
+    "BIDI",
+    "CRFB",
+    "CMIN",
+    "RAIL",
+    "LREN",
+    "EGIE",
+    "BPAC",
+    "CPFE",
+    "ALPA",
+    "BRDT",
+    "TIMS",
+    "AMER",
+    "ASAI",
+    "CMIG",
+    "SBSP",
+    "KLBN",
+    "CXSE",
+    "EQTL",
+    "CCRO",
+    "DASA",
+    "PRIO",
+    "BRFS",
+    "CGAS",
+    "TOTS",
+    "BRAP",
+    "ENEV",
+    "HYPE",
+    "ENGI",
+    "USIM",
+    "NEOE",
+    "BPAN",
+    "TRPL",
+    "EMBR",
+    "MRFG",
+    "ENMT",
+    "CEGR",
+    "GMAT",
+    "CPLE",
+    "PSSA",
+    "MRSA",
+    "UGPA",
+    "SMFT",
+    "VAMO",
+    "TFCO",
+    "LWSA",
+    "REDE",
+    "GOAU",
+    "SOMA",
+    "SMTO",
+    "TAEE",
+    "DXCO",
+    "LCAM",
+    "VIIA",
+    "EQPA",
+    "MDIA",
+    "GGPS",
+    "MULT",
+    "ENBR",
+    "SIMH",
+    "WHRL",
+    "SULA",
+    "INTB",
+    "CEEB",
+    "SHUL",
+    "BSLI",
+    "SLCE",
+    "PETZ",
+    "CEPE",
+    "CBAV",
+    "CASN",
+    "ARZZ",
+    "BLAU",
+    "ODPV",
+    "LAME",
+    "UNIP",
+    "CESP",
+    "GRND",
+    "YDUQ",
+    "ARML",
+    "BRML",
+    "FLRY",
+    "VIVA",
+    "SBFG",
+    "ONCO",
+    "CYRE",
+    "OMGE",
+    "GUAR",
+    "BOAS",
+    "PCAR",
+    "ALUP",
+    "BNBR",
+    "STBP",
+    "VVEO",
+    "EKTR",
+    "AESB",
+    "ALSO",
+    "MRVE",
+    "MOVI",
+    "MATD",
+    "MLAS",
+    "ECOR",
+    "RRRP",
+    "IGTA",
+    "CIEL",
+    "QUAL",
+    "AERI",
+    "PGMN",
+    "BEEF",
+    "MOAR",
+    "IRBR",
+    "EZTC",
+    "AMBP",
+    "CSMG",
+    "BRSR",
+    "LEVE",
+    "LIGT",
+    "COCE",
+    "CVCB",
+    "RECV",
+    "TASA",
+    "SAPR",
+    "BRIT",
+    "FESA",
+    "CLSA",
+    "CASH",
+    "IFCM",
+    "KRSA",
+    "RAPT",
+    "CBEE",
+    "COGN",
+    "ENAT",
+    "MODL",
+    "CAML",
+    "TTEN",
+    "ANIM",
+    "JHSF",
+    "ESPA",
+    "BRPR",
+    "ABCB",
+    "GPAR",
+    "GEPA",
+    "LJQQ",
+    "AGRO",
+    "TUPY",
+    "TELB",
+    "CSRN",
+    "FRAS",
+    "MYPK",
+    "CSED",
+    "PARD",
+    "JALL",
+    "CRPG",
+    "CLSC",
+    "CEBR",
+    "JSLG",
+    "EEEL",
+    "LOGG",
+    "VULC",
+    "JPSA",
+    "LOGN",
+    "HBSA",
+    "ELMD",
+    "BKBR",
+    "DESK",
+    "FIQE",
+    "CEAB",
+    "ODER",
+    "PNVL",
+    "CURY",
+    "SCAR",
+    "EMAE",
+    "SEQL",
+    "POMO",
+    "ORVR",
+    "ALLD",
+    "WIZS",
+    "SQIA",
+    "BMGB",
+    "PATI",
+    "TRAD",
+    "MOSI",
+    "SOJA",
+    "LAND",
+    "DIRR",
+    "TEND",
+    "SYNE",
+    "RANI",
+    "OFSA",
+    "PTBL",
+    "FHER",
+    "BMOB",
+    "EVEN",
+    "SEER",
+    "BPAR",
+    "DOHL",
+    "BEES",
+    "HBRE",
+    "AGXY",
+    "WLMM",
+    "HBOR",
+    "ROMI",
+    "AMAR",
+    "TRIS",
+    "AALR",
+    "VITT",
+    "MILS",
+    "LVTC",
+    "ALPK",
+    "KEPL",
+    "BAZA",
+    "TGMA",
+    "BMEB",
+    "POWE",
+    "LAVV",
+    "DEXP",
+    "BIOM",
+    "NGRD",
+    "EUCA",
+    "CGRA",
+    "POSI",
+    "MEAL",
+    "PEAB",
+    "MELK",
+    "LIPR",
+    "ENJU",
+    "DOTZ",
+    "CARD",
+    "ETER",
+    "BRIV",
+    "MTRE",
+    "VSPT",
+    "AVLL",
+    "GFSA",
+    "BRGE",
+    "VLID",
+    "MBLY",
+    "RPAD",
+    "APER",
+    "PFRM",
+    "PLPL",
+    "OPCT",
+    "MDNE",
+    "PTNT",
+    "CRIV",
+    "HBTS",
+    "AFLT",
+    "RSUL",
+    "PDTC",
+    "MTSA",
+    "RDNI",
+    "BAUH",
+    "NINJ",
+    "WEST",
+    "CEED",
+    "PMAM",
+    "CSAB",
+    "LUXM",
+    "BGIP",
+    "TCSA",
+    "MERC",
+    "SGPS",
+    "TPIS",
+    "SHOW",
+    "JOPA",
+    "PRNR",
+    "MSPA",
+    "DMVF",
+    "LPSB",
+    "VIVR",
+    "RNEW",
+    "FRIO",
+    "UCAS",
+    "BOBR",
+    "TECN",
+    "AZEV",
+    "MGEL",
+    "RPMG",
+    "BAHI",
+    "CTNM",
+    "TKNO",
+    "FIGE",
+    "EPAR",
+    "CAMB",
+    "INEP",
+    "OIBR",
+    "ECPR",
+    "CTKA",
+    "CTSA",
+    "PLAS",
+    "PINE",
+    "MNDL",
+    "LUPA",
+    "BALM",
+    "LLIS",
+    "RSID",
+    "AHEB",
+    "JFEN",
+    "BMIN",
+    "BMKS",
+    "NORD",
+    "ATMP",
+    "SOND",
+    "MMXM",
+    "DTCY",
+    "ATOM",
+    "BBRK",
+    "GSHP",
+    "RCSL",
+    "TXRX",
+    "MNPR",
+    "APTI",
+    "CEDO",
+    "SNSY",
+    "HOOT",
+    "PDGR",
+    "CRDE",
+    "IGBR",
+    "ESTR",
+    "HETA",
+    "MAPT",
+    "NUTR",
+    "HAGA",
+    "BLUT",
+    "CALI",
+    "OSXB",
+    "EALT",
+    "MTIG",
+    "BDLL",
+    "FNCN",
+    "FRTA",
+    "CORR",
+    "ATEA",
+    "AURA",
+    "BBML",
+    "BRBI",
+    "CTCA",
+    "DMMO",
+    "EQMA",
+    "G2DI",
+    "GPIV",
+    "MMAQ",
+    "PPAR",
+    "PSVM",
+    "PPLA",
+    "SLED",
+    "TCNO",
+    "TEKA",
+    "MWET",
+    "WSON",
+  ];
+
+  const fiis = [
+    "KNIP",
+    "KNCR",
+    "HGLG",
+    "KNRI",
+    "IRDM",
+    "XPLG",
+    "RECR",
+    "CPTS",
+    "HCTR",
+    "XPML",
+    "MXRF",
+    "HGRU",
+    "BRCR",
+    "VISC",
+    "HFOF",
+    "BCFF",
+    "HGBS",
+    "HGCR",
+    "JSRE",
+    "BTLG",
+    "HGRE",
+    "VILG",
+    "BBPO",
+    "KNHY",
+    "BRCO",
+    "DEVA",
+    "TGAR",
+    "MCCI",
+    "HSML",
+    "RBVA",
+    "LVBI",
+    "PVBI",
+    "HSLG",
+    "VCJR",
+    "RZTR",
+    "VRTA",
+    "GTWR",
+    "RBRF",
+    "RBRR",
+    "CVBI",
+    "SJAU",
+    "XPCI",
+    "RBRP",
+    "GGRC",
+    "PQAG",
+    "KNSC",
+    "ABCP",
+    "HSRE",
+    "SDIL",
+    "HABT",
+    "TRXF",
+    "VINO",
+    "VGIP",
+    "SARE",
+    "MALL",
+    "ALZR",
+    "BCRI",
+    "XPIN",
+    "RBRL",
+    "BZLI",
+    "MGFF",
+    "RZAK",
+    "GALG",
+    "BTAL",
+    "RECT",
+    "RCRB",
+    "FEXC",
+    "XPPR",
+    "NVHO",
+    "PQDP",
+    "SHPH",
+    "BARI",
+    "BLMG",
+    "MFII",
+    "TRNT",
+    "BTCR",
+    "HLOG",
+    "CPFF",
+    "VGIR",
+    "URPR",
+    "HGPO",
+    "MCHY",
+    "AIEC",
+    "FCFL",
+    "VSLH",
+    "KISU",
+    "TORD",
+    "KFOF",
+    "CXCO",
+    "PORD",
+    "PATL",
+    "XPHT",
+    "XPSF",
+    "RBRY",
+    "FVPQ",
+    "BPML",
+    "VGHF",
+    "BCIA",
+    "BLCP",
+    "FIIB",
+    "TEPP",
+    "BTRA",
+    "BBFO",
+    "BPFF",
+    "GSFI",
+    "TRXB",
+    "OUJP",
+    "FISC",
+    "RBED",
+    "MINT",
+    "SADI",
+    "NSLU",
+    "QAGR",
+    "HPDP",
+    "LASC",
+    "STRX",
+    "SNFF",
+    "HBRH",
+    "HOSI",
+    "LGCP",
+    "VIUR",
+    "VVPR",
+    "PATC",
+    "RBFF",
+    "HGFF",
+    "VIFI",
+    "LFTT",
+    "HBTT",
+    "THRA",
+    "NEWL",
+    "RSPD",
+    "RBCO",
+    "EQIN",
+    "BLMR",
+    "VTLT",
+    "PLCR",
+    "CJCT",
+    "FLMA",
+    "MORE",
+    "ATSA",
+    "VSHO",
+    "VLOL",
+    "VCRR",
+    "AFHI",
+    "JRDM",
+    "FPAB",
+    "BBRC",
+    "ERCR",
+    "HSAF",
+    "ARCT",
+    "RNGO",
+    "CCRF",
+    "AFCR",
+    "FIGS",
+    "OULG",
+    "RBHY",
+    "VXXV",
+    "OURE",
+    "RBHG",
+    "IRIM",
+    "KEVE",
+    "BPRP",
+    "ONEF",
+    "SEQR",
+    "FISD",
+    "HTMX",
+    "OUFF",
+    "RBBV",
+    "TSER",
+    "MGCR",
+    "VERE",
+    "RVBI",
+    "JFLL",
+    "MGHT",
+    "RBIR",
+    "RELG",
+    "JBFO",
+    "TOUR",
+    "HCHG",
+    "CNES",
+    "QIRI",
+    "CEOC",
+    "CXRI",
+    "MGLG",
+    "DVFF",
+    "ALMI",
+    "EVBI",
+    "HUSC",
+    "FATN",
+    "ARRI",
+    "MAXR",
+    "BLMO",
+    "BREV",
+    "KINP",
+    "CORM",
+    "RBRS",
+    "HUSI",
+    "SPTW",
+    "FAED",
+    "EGYR",
+    "RBRD",
+    "BRIP",
+    "BMLC",
+    "CBOP",
+    "EDGA",
+    "BNFS",
+    "GCRI",
+    "BTWR",
+    "FLRP",
+    "MCHF",
+    "RFOF",
+    "MBRF",
+    "LUGG",
+    "CARE",
+    "HCRI",
+    "BRIM",
+    "EURO",
+    "RMAI",
+    "RNDP",
+    "IBCR",
+    "QAMI",
+    "HCST",
+    "TCIN",
+    "RDPD",
+    "NAVT",
+    "SOLR",
+    "FPNG",
+    "VOTS",
+    "IFIE",
+    "ERPA",
+    "RBLG",
+    "WPLZ",
+    "XPCM",
+    "IFID",
+    "PLOG",
+    "AFOF",
+    "JPPA",
+    "RBTS",
+    "CTXT",
+    "FLCR",
+    "CRFF",
+    "BICR",
+    "PLRI",
+    "IBFF",
+    "HMOC",
+    "KNRE",
+    "BLMC",
+    "PEMA",
+    "RECX",
+    "ORPD",
+    "RRCI",
+    "AQLL",
+    "RBGS",
+    "SCPF",
+    "FMOF",
+    "RBRM",
+    "RCFF",
+    "HBCR",
+    "ZIFI",
+    "GCFF",
+    "PRSV",
+    "NEWU",
+    "FIVN",
+    "MFAI",
+    "REIT",
+    "CXTL",
+    "JPPC",
+    "HGIC",
+    "XTED",
+    "HRDF",
+    "PABY",
+    "RBVO",
+    "RCFA",
+    "VSEC",
+    "GRLV",
+    "DMAC",
+    "RBDS",
+    "NPAR",
+    "ATWN",
+    "ANCR",
+    "ARFI",
+    "BZEL",
+    "BBFI",
+    "BBIM",
+    "BLCA",
+    "BRHT",
+    "BROL",
+    "BVAR",
+    "BMII",
+    "BICE",
+    "BIME",
+    "BPMA",
+    "BRLA",
+    "BTSG",
+    "BTSI",
+    "CXAG",
+    "CXCE",
+    "CFHI",
+    "CJFI",
+    "HGRS",
+    "CVPR",
+    "CYCR",
+    "DLMT",
+    "LKDV",
+    "DAMT",
+    "DOVL",
+    "FAMB",
+    "EDFO",
+    "EQIR",
+    "EXES",
+    "FDHY",
+    "ELDO",
+    "VTPL",
+    "SBCL",
+    "GESE",
+    "GLPL",
+    "FGPM",
+    "GTLG",
+    "GAME",
+    "ATCR",
+    "PRGD",
+    "FINF",
+    "VJFD",
+    "JSAF",
+    "JTPR",
+    "LPLP",
+    "LATR",
+    "LSPA",
+    "LOFT",
+    "MADS",
+    "MMPD",
+    "MMVE",
+    "MGLC",
+    "MATV",
+    "MORC",
+    "PRTS",
+    "SHOP",
+    "DRIT",
+    "MTOF",
+    "MOFF",
+    "MVFI",
+    "NVIF",
+    "FTCE",
+    "WTSP",
+    "PNDL",
+    "PNPR",
+    "VTVI",
+    "PATB",
+    "PRSN",
+    "PURB",
+    "ESTQ",
+    "VPSI",
+    "PRZS",
+    "PBLV",
+    "XBXO",
+    "FIIP",
+    "RBRU",
+    "RCRI",
+    "RECH",
+    "ROOF",
+    "SACL",
+    "SFND",
+    "SFRO",
+    "SHDP",
+    "SAIC",
+    "SIGR",
+    "SPAF",
+    "SPVJ",
+    "SNCI",
+    "TELD",
+    "TELF",
+    "TORM",
+    "TSNC",
+    "TCPF",
+    "TSNM",
+    "VLJS",
+    "SALI",
+    "VTPA",
+    "VTXI",
+    "YUFI",
+  ];
+
+  // Email e senha
+
+  const user = {};
+
+  user.email = "rmuttonic@gmail.com";
+  user.password = "12345678";
+
+  // Abrir browser e navegar para a pagina
+
+  const browser = await puppeteer.launch({ headless: true });
+  const page = await browser.newPage();
+
+  await page.goto("https://fundamentei.com/login");
+
+  // Login
+
+  await page.waitForSelector("[name=email]");
+
+  await page.type("[name=email]", user.email);
+
+  await page.type("[name=password]", user.password);
+
+  await Promise.all([page.waitForNavigation(), page.click("[type=submit]")]);
+
+  let csv = `Fii,Grade,Votes\n`;
+
+  for (i = 0; i < fiis.length; i++) {
+    try {
+      await Promise.all([
+        page.waitForNavigation(),
+        page.goto(`https://fundamentei.com/fiis/${fiis[i]}`),
+      ]);
+
+      // NOTA ATIVO
+      const grade = await page.$eval("h3.css-h1iaj5", (el) =>
+        el.textContent.split("/")[0].trim()
+      );
+
+      console.log("grade", grade);
+
+      // NUM AVALIACOES
+      const numOfVotes = await page.$eval(
+        "p.css-ydmqo4 strong",
+        (el) => el.textContent
+      );
+
+      console.log("numOfVotes", numOfVotes);
+
+      csv = csv.concat(`${fiis[i]},${grade},${numOfVotes}\n`);
+    } catch (err) {
+      console.log("err", err);
+      csv = csv.concat(`${fiis[i]},ERR,ERR\n`);
+    }
+  }
+
+  return fs.writeFile("fiis.csv", csv, function (err) {
+    if (err) return console.log(err);
+    console.log("Arquivo fiis.csv criado.");
+  });
+};
+
+scrapeData();
